@@ -31,13 +31,17 @@ type Commit struct {
 	Added, Removed, Modified    []string
 }
 
-func ReceiveHooks(addr string) (chan Payload, error) {
-	ch := make(chan Payload)
-	err := http.ListenAndServe(addr, http.HandlerFunc(pushHandler(ch)))
-	return ch, err
+func ReceiveHooks(addr string) (<-chan Payload, <-chan error) {
+	ch := make(chan Payload, 1)
+	ech := make(chan error, 1)
+	go func() {
+		err := http.ListenAndServe(addr, http.HandlerFunc(pushHandler(ch)))
+		ech <- err
+	}()
+	return ch, ech
 }
 
-func pushHandler(ch chan Payload) func(w http.ResponseWriter, r *http.Request) {
+func pushHandler(ch chan<- Payload) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "POST":
